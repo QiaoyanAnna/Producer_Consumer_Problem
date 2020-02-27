@@ -14,6 +14,7 @@ sem_t empty;
 sem_t full;
 int* queue;
 int head;
+bool eof;
 
 struct Thread {
     pthread_t tid;
@@ -71,10 +72,10 @@ int main(int argc, char** argv) {
     int sizeOfQueue = nthreads * 2;
     queue = (int*)malloc(sizeOfQueue);
     head = 0;
+    eof = false;
 
     struct Thread *threads;
-    // threads = (struct Thread*)calloc(nthreads, sizeof(struct Thread));
-    threads = (struct Thread*)malloc(sizeof(struct Thread *) * nthreads);
+    threads = (struct Thread *)malloc(sizeof(struct Thread *) * nthreads);
 
     if (sem_init(&m, 1, 1)) {
         perror("Semaphore Error\n");
@@ -98,19 +99,18 @@ int main(int argc, char** argv) {
         }
     }
 
+    
     while (1){
         if (scanf("%c%d", &request, &n) == EOF){
+            eof = true;
             break;
         }
         if (request == 'T') {
             // put work into queue
             sem_wait(&empty);
             sem_wait(&m);
-            // queue[0] = 0;
-            // queue[1] = 1;
-            // printf("parent q0: %d, q1: %d\n", queue[0], queue[1]);
+            queue[head] = n;
             head++;
-            printf("done");
             sem_post(&m);
             sem_post(&full);
             work++;
@@ -130,6 +130,7 @@ int main(int argc, char** argv) {
  
     free(threads);
     free(queue);
+    pthread_exit(0);
 
     // summary(work, ask, receive, complete, sleep, threads, nthreads);
 
@@ -151,12 +152,17 @@ void *removeWork(void* arg) {
     struct Thread *threads = arg;
     // threads->ask = threads->ask + 1;
     // printf("ThreadId: %lu, Ask: %d\n", threads->tid, threads->ask);
-    // sem_wait(&full);
-    // sem_wait(&m);
-    printf("head: %d", head);
+    while(!eof) {
+    
 
-    // sem_post(&m);
-    // sem_post(&empty);
+        sleep(5);
+        sem_wait(&full);
+        sem_wait(&m);
+        printf("head: %d", head);
+
+        sem_post(&m);
+        sem_post(&empty);
+    }
 
 
 

@@ -9,8 +9,8 @@ void printQueue (int queue[], int head, int tail) {
     printf("\n");
 }
 
-void enqueue (int queue[], int* tail, int sizeOfQueue, int n ) {
-    if ( *tail != sizeOfQueue ) { // not full
+void enqueue (int queue[], int* head, int* tail, int sizeOfQueue, int n ) {
+    if ((*tail-*head) != sizeOfQueue) { // not full
         queue[*tail] = n;
         (*tail)++;
     }
@@ -18,10 +18,13 @@ void enqueue (int queue[], int* tail, int sizeOfQueue, int n ) {
 //     printf("enqueue: %d, tail: %d", queue, tail);
 }
 
-void dequeue (int queue[], int* head, int* tail) {
-    if ( *head != *tail ) { // not empty
+int dequeue (int queue[], int* head, int* tail) {
+    if (*head != *tail) { // not empty
+        int item = queue[*head];
         (*head)++;
+        return item;
     }
+    return -1;
 }
 
 
@@ -29,20 +32,26 @@ void dequeue (int queue[], int* head, int* tail) {
 int main()
 {
 
-    int n = 1;
+    // int n = 1;
     int head = 0;
     int tail = 0;
     int sizeOfQueue = 5;
     int queue[sizeOfQueue];
+    int item;
 
-    enqueue(queue, &tail, sizeOfQueue, n);
-    enqueue(queue, &tail, sizeOfQueue, 2);
-    enqueue(queue, &tail, sizeOfQueue, 3);
-    enqueue(queue, &tail, sizeOfQueue, 4);
-    enqueue(queue, &tail, sizeOfQueue, 5);
-    printf("tail: %d\n", tail);
-    printQueue(queue, head, tail);
-    dequeue (queue, &head, &tail);
+    for (int i = 0; i < 6; i++) {
+        enqueue(queue, &head, &tail, sizeOfQueue, i);
+        printQueue(queue, head, tail);
+    }
+    
+    for (int i = 0; i < 6; i++) {
+        item = dequeue(queue, &head, &tail);
+        printf("item: %d\n", item);
+        printQueue(queue, head, tail);
+    }
+    
+    
+    printf("Result: \n");
     printQueue(queue, head, tail);
     // printf("main: %s", queue);
     return 0;
