@@ -3,11 +3,25 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <pthread.h>
+#include <semaphore.h>
 
 #include "tands.h"
 
+sem_t m;
+sem_t empty;
+sem_t full;
+
+struct Thread {
+    pthread_t tid;
+    int ask;
+    int receive;
+    int complete;
+};
+
 bool isNum(char* num);
-void summary(int work, int ask, int receive, int complete, int sleep, char threads[], int nthreads);
+void *removeWork(void* arg);
+// void summary(int work, int ask, int receive, int complete, int sleep, int threads[], int nthreads);
 
 int main(int argc, char** argv) {
 
@@ -50,20 +64,44 @@ int main(int argc, char** argv) {
     char request;
     int n;
     int work = 0;
-    int ask = 0;
-    int receive = 0;
-    int complete = 0;
     int sleep = 0;
-    char threads[nthreads];
+    int sizeOfQueue = nthreads * 2;
+    // int queue[sizeOfQueue];
+    // int head = 0;
 
-    memset(threads, 0, nthreads);  
+    struct Thread *threads;
+    threads = calloc(nthreads, sizeof(struct Thread));
+
+    if (sem_init(&m, 1, 1)) {
+        perror("Semaphore Error\n");
+        exit(-1);
+    }
+
+    if (sem_init(&empty, 2, sizeOfQueue)) {
+        perror("Semaphore Error\n");
+        exit(-1);
+    }
+
+    if (sem_init(&full, 3, 0)) {
+        perror("Semaphore Error\n");
+        exit(-1);
+    }
+
+    for (int i = 0; i < nthreads; i++) {
+        if (pthread_create(&threads[i].tid, NULL, removeWork, &threads[i])){
+            perror("Error occured during creating a thread\n");
+            return -1;
+        }
+    }
 
     while (1){
         if (scanf("%c%d", &request, &n) == EOF){
             break;
         }
-
         if (request == 'T') {
+            // put work into queue
+
+
             work++;
             Trans(n);
         } else if (request == 'S') {
@@ -75,7 +113,13 @@ int main(int argc, char** argv) {
 
     }
 
-    summary(work, ask, receive, complete, sleep, threads, nthreads);
+    for (int j = 0; j < nthreads; j++) {
+        pthread_join(threads[j].tid, NULL);
+    }
+
+    free(threads);
+
+    // summary(work, ask, receive, complete, sleep, threads, nthreads);
 
     
   return 0;
@@ -90,14 +134,23 @@ bool isNum(char* num) {
     return true; 
 } 
 
-void summary(int work, int ask, int receive, int complete, int sleep, char threads[], int nthreads) {
+void *removeWork(void* arg) {
+    printf("created\n");
+    struct Thread *threads = arg;
+    threads->ask = threads->ask + 1;
+    printf("ThreadId: %lu, Ask: %d\n", threads->tid, threads->ask);
+    return 0;
+}
+
+
+void summary(int work, int ask, int receive, int complete, int sleep, int nthreads) {
     fprintf(stdout, "Summary:\n");
     fprintf(stdout, "\tWork\t\t%d\n", work);
     fprintf(stdout, "\tAsk\t\t%d\n", ask);
     fprintf(stdout, "\tReceive\t\t%d\n", receive);
     fprintf(stdout, "\tComplete\t%d\n", complete);
     fprintf(stdout, "\tSleep\t\t%d\n", sleep);
-    for (int i = 0; i < nthreads; i++) {
-        fprintf(stdout, "\tThread %d\t%d\n", i+1, threads[i]);
-    }
+    // for (int i = 0; i < nthreads; i++) {
+    //     fprintf(stdout, "\tThread %d\t%d\n", i+1, threads[i]); caution: threads
+    // }
 }
