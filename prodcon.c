@@ -14,10 +14,12 @@ sem_t empty;
 sem_t full;
 int* queue;
 int head;
+int tail;
 bool eof;
 
 struct Thread {
     pthread_t tid;
+    int consumerId;
     int ask;
     int receive;
     int complete;
@@ -72,27 +74,29 @@ int main(int argc, char** argv) {
     int sizeOfQueue = nthreads * 2;
     queue = (int*)malloc(sizeOfQueue);
     head = 0;
+    tail = 0;
     eof = false;
 
     struct Thread *threads;
     threads = (struct Thread *)malloc(sizeof(struct Thread *) * nthreads);
 
-    if (sem_init(&m, 1, 1)) {
+    if (sem_init(&m, 0, 1)) {
         perror("Semaphore Error\n");
         exit(-1);
     }
 
-    if (sem_init(&empty, 2, sizeOfQueue)) {
+    if (sem_init(&empty, 0, sizeOfQueue)) {
         perror("Semaphore Error\n");
         exit(-1);
     }
 
-    if (sem_init(&full, 3, 0)) {
+    if (sem_init(&full, 0, 0)) {
         perror("Semaphore Error\n");
         exit(-1);
     }
 
     for (int i = 0; i < nthreads; i++) {
+        threads[i].consumerId = i+1;
         if (pthread_create(&threads[i].tid, NULL, removeWork, &threads[i])){
             perror("Error occured during creating a thread\n");
             return -1;
@@ -101,19 +105,27 @@ int main(int argc, char** argv) {
 
     
     while (1){
-        if (scanf("%c%d", &request, &n) == EOF){
+        if (scanf("%c%d", &request, &n) == EOF){            
             eof = true;
+            printf("time to break\n");
             break;
         }
         if (request == 'T') {
             // put work into queue
             sem_wait(&empty);
             sem_wait(&m);
-            queue[head] = n;
-            head++;
+            queue[tail] = n;
+            tail++;
+            // for (int i=0; i<tail-head; i++) {
+            //     printf("parent: %d, ", queue[i]);
+            // }
             sem_post(&m);
             sem_post(&full);
+
+
+
             work++;
+
             // Trans(n);
         } else if (request == 'S') {
             sleep++;
@@ -125,17 +137,21 @@ int main(int argc, char** argv) {
     }
 
     for (int j = 0; j < nthreads; j++) {
+        // if (pthread_join(threads[j].tid, NULL)==0){
+        //     printf("joined\n");
+        // }
         pthread_join(threads[j].tid, NULL);
+        printf("joined\n");
     }
- 
-    free(threads);
-    free(queue);
-    pthread_exit(0);
+
+    // free(threads);
+    // free(queue);
+    // pthread_exit(0);
 
     // summary(work, ask, receive, complete, sleep, threads, nthreads);
 
     
-  return 0;
+    return 0;
 }
 
 bool isNum(char* num) {
@@ -150,18 +166,28 @@ bool isNum(char* num) {
 void *removeWork(void* arg) {
     printf("created\n");
     struct Thread *threads = arg;
+    int n;
     // threads->ask = threads->ask + 1;
     // printf("ThreadId: %lu, Ask: %d\n", threads->tid, threads->ask);
-    while(!eof) {
-    
-
-        sleep(5);
+    while(1) {
+        // sleep(5);
+        if (eof && (head == tail)) {
+            break;
+        }
         sem_wait(&full);
         sem_wait(&m);
-        printf("head: %d", head);
+        n = queue[head];
+        printf("item: %d\n", n);
+        head++;
+
+        // for (int i=0; i<tail-head; i++) {
+        //     printf("child: %d, ", queue[i]);
+        // }
 
         sem_post(&m);
         sem_post(&empty);
+        //call tran
+
     }
 
 

@@ -9,22 +9,15 @@ void printQueue (int queue[], int head, int tail) {
     printf("\n");
 }
 
-void enqueue (int queue[], int* head, int* tail, int sizeOfQueue, int n ) {
-    if ((*tail-*head) != sizeOfQueue) { // not full
-        queue[*tail] = n;
-        (*tail)++;
-    }
-
-//     printf("enqueue: %d, tail: %d", queue, tail);
+void enqueue (int queue[], int* tail, int n ) {
+    queue[*tail] = n;
+    (*tail)++;
 }
 
-int dequeue (int queue[], int* head, int* tail) {
-    if (*head != *tail) { // not empty
-        int item = queue[*head];
-        (*head)++;
-        return item;
-    }
-    return -1;
+int dequeue (int queue[], int* head) {
+    int item = queue[*head];
+    (*head)++;
+    return item;
 }
 
 
