@@ -5,12 +5,15 @@
 #include <ctype.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <unistd.h>
 
 #include "tands.h"
 
 sem_t m;
 sem_t empty;
 sem_t full;
+int* queue;
+int head;
 
 struct Thread {
     pthread_t tid;
@@ -66,11 +69,12 @@ int main(int argc, char** argv) {
     int work = 0;
     int sleep = 0;
     int sizeOfQueue = nthreads * 2;
-    // int queue[sizeOfQueue];
-    // int head = 0;
+    queue = (int*)malloc(sizeOfQueue);
+    head = 0;
 
     struct Thread *threads;
-    threads = calloc(nthreads, sizeof(struct Thread));
+    // threads = (struct Thread*)calloc(nthreads, sizeof(struct Thread));
+    threads = (struct Thread*)malloc(sizeof(struct Thread *) * nthreads);
 
     if (sem_init(&m, 1, 1)) {
         perror("Semaphore Error\n");
@@ -100,10 +104,17 @@ int main(int argc, char** argv) {
         }
         if (request == 'T') {
             // put work into queue
-
-
+            sem_wait(&empty);
+            sem_wait(&m);
+            // queue[0] = 0;
+            // queue[1] = 1;
+            // printf("parent q0: %d, q1: %d\n", queue[0], queue[1]);
+            head++;
+            printf("done");
+            sem_post(&m);
+            sem_post(&full);
             work++;
-            Trans(n);
+            // Trans(n);
         } else if (request == 'S') {
             sleep++;
             Sleep(n);
@@ -116,8 +127,9 @@ int main(int argc, char** argv) {
     for (int j = 0; j < nthreads; j++) {
         pthread_join(threads[j].tid, NULL);
     }
-
+ 
     free(threads);
+    free(queue);
 
     // summary(work, ask, receive, complete, sleep, threads, nthreads);
 
@@ -137,8 +149,19 @@ bool isNum(char* num) {
 void *removeWork(void* arg) {
     printf("created\n");
     struct Thread *threads = arg;
-    threads->ask = threads->ask + 1;
-    printf("ThreadId: %lu, Ask: %d\n", threads->tid, threads->ask);
+    // threads->ask = threads->ask + 1;
+    // printf("ThreadId: %lu, Ask: %d\n", threads->tid, threads->ask);
+    // sem_wait(&full);
+    // sem_wait(&m);
+    printf("head: %d", head);
+
+    // sem_post(&m);
+    // sem_post(&empty);
+
+
+
+    
+
     return 0;
 }
 
