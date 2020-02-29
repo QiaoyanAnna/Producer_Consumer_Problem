@@ -6,12 +6,14 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "tands.h"
 
 sem_t m;
 sem_t empty;
 sem_t full;
+clock_t begin;
 int* queue;
 int head;
 int tail;
@@ -27,7 +29,7 @@ struct Thread {
 
 bool isNum(char* num);
 void *removeWork(void* arg);
-// void summary(int work, int ask, int receive, int complete, int sleep, int threads[], int nthreads);
+void summary(int work, int sleep, clock_t end, struct Thread *threads, int nthreads);
 
 int main(int argc, char** argv) {
 
@@ -76,9 +78,13 @@ int main(int argc, char** argv) {
     head = 0;
     tail = 0;
     eof = false;
+    clock_t current;
+    double timeTaken;
 
     struct Thread *threads;
-    threads = (struct Thread *)malloc(sizeof(struct Thread *) * nthreads);
+    // threads = (struct Thread *)calloc(nthreads, sizeof(struct Thread));
+    // threads = (struct Thread *)malloc(sizeof(struct Thread *) * nthreads);
+    threads = (struct Thread *)malloc(sizeof(struct Thread) * nthreads);
 
     if (sem_init(&m, 0, 1)) {
         perror("Semaphore Error\n");
@@ -97,39 +103,42 @@ int main(int argc, char** argv) {
 
     for (int i = 0; i < nthreads; i++) {
         threads[i].consumerId = i+1;
+        threads[i].ask = 0;
+        threads[i].receive = 0;
+        threads[i].complete = 0;
         if (pthread_create(&threads[i].tid, NULL, removeWork, &threads[i])){
             perror("Error occured during creating a thread\n");
             return -1;
         }
     }
 
-    
     while (1){
         if (scanf("%c%d", &request, &n) == EOF){            
+            current = clock();
             eof = true;
-            printf("time to break\n");
+            timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
+            fprintf(stdout, "%0.3f ID= 0      End\n", timeTaken);
             break;
         }
+        begin = clock();
         if (request == 'T') {
             // put work into queue
             sem_wait(&empty);
             sem_wait(&m);
             queue[tail] = n;
             tail++;
-            // for (int i=0; i<tail-head; i++) {
-            //     printf("parent: %d, ", queue[i]);
-            // }
             sem_post(&m);
             sem_post(&full);
-
-
-
+            current = clock();
+            timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
+            fprintf(stdout, "%0.3f ID= 0 Q= %d Work\t\t%d\n", timeTaken, tail-head, n);
             work++;
-
-            // Trans(n);
         } else if (request == 'S') {
-            sleep++;
+            current = clock();
+            timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
+            fprintf(stdout, "%0.3f ID= 0      Sleep\t\t%d\n", timeTaken, n);
             Sleep(n);
+            sleep++;
         } 
 
         getchar(); // read a newline char
@@ -137,20 +146,19 @@ int main(int argc, char** argv) {
     }
 
     for (int j = 0; j < nthreads; j++) {
-        // if (pthread_join(threads[j].tid, NULL)==0){
-        //     printf("joined\n");
-        // }
-        pthread_join(threads[j].tid, NULL);
-        printf("joined\n");
+        if (pthread_join(threads[j].tid, NULL)==0){
+            printf("thread %d joined.\n", threads[j].consumerId);
+        }
     }
 
-    // free(threads);
-    // free(queue);
+    clock_t end = clock();
+    
+    summary(work, sleep, end, threads, nthreads);
+
+    free(threads);
+    free(queue);
     // pthread_exit(0);
 
-    // summary(work, ask, receive, complete, sleep, threads, nthreads);
-
-    
     return 0;
 }
 
@@ -164,48 +172,69 @@ bool isNum(char* num) {
 } 
 
 void *removeWork(void* arg) {
-    printf("created\n");
+    
     struct Thread *threads = arg;
-    int n;
-    // threads->ask = threads->ask + 1;
-    // printf("ThreadId: %lu, Ask: %d\n", threads->tid, threads->ask);
+    int n, q;
+    double timeTaken;
+    clock_t current;
+
     while(1) {
-        // sleep(5);
-        if (eof && (head == tail)) {
+        current = clock();
+        timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
+        fprintf(stdout, "%0.3f ID= %d      Ask\n", timeTaken, threads->consumerId);
+        threads->ask = threads->ask + 1;
+        if ((head == tail) && eof) {
             break;
         }
         sem_wait(&full);
         sem_wait(&m);
-        n = queue[head];
-        printf("item: %d\n", n);
-        head++;
-
-        // for (int i=0; i<tail-head; i++) {
-        //     printf("child: %d, ", queue[i]);
-        // }
-
+        if (head != tail) {
+            n = queue[head];
+            head++;
+            q = tail - head;
+        } else if (eof) {
+            break;
+        }
         sem_post(&m);
         sem_post(&empty);
-        //call tran
-
+        current = clock();
+        timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
+        fprintf(stdout, "%0.3f ID= %d Q= %d Receive\t%d\n", timeTaken, threads->consumerId, q, n);
+        threads->receive = threads->receive + 1;
+        Trans(n);
+        current = clock();
+        timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
+        fprintf(stdout, "%0.3f ID= %d      Complete\t%d\n", timeTaken, threads->consumerId, n);
+        threads->complete = threads->complete + 1;
     }
-
-
-
-    
 
     return 0;
 }
 
 
-void summary(int work, int ask, int receive, int complete, int sleep, int nthreads) {
+void summary(int work, int sleep, clock_t end, struct Thread *threads, int nthreads) {
+    int totalAsk = 0;
+    int totalReceive = 0;
+    int totalComplete = 0;
+    double totalTime = ((double)end-begin) / CLOCKS_PER_SEC;
+    printf("totalTime: %f\n", totalTime);
+    double transPerSec = work / totalTime;
+
+    for (int i = 0; i < nthreads; i++) {
+        totalAsk = totalAsk + threads[i].ask;
+        totalReceive = totalReceive + threads[i].receive;
+        totalComplete = totalComplete + threads[i].complete;
+    }
+
     fprintf(stdout, "Summary:\n");
     fprintf(stdout, "\tWork\t\t%d\n", work);
-    fprintf(stdout, "\tAsk\t\t%d\n", ask);
-    fprintf(stdout, "\tReceive\t\t%d\n", receive);
-    fprintf(stdout, "\tComplete\t%d\n", complete);
+    fprintf(stdout, "\tAsk\t\t%d\n", totalAsk);
+    fprintf(stdout, "\tReceive\t\t%d\n", totalReceive);
+    fprintf(stdout, "\tComplete\t%d\n", totalComplete);
     fprintf(stdout, "\tSleep\t\t%d\n", sleep);
-    // for (int i = 0; i < nthreads; i++) {
-    //     fprintf(stdout, "\tThread %d\t%d\n", i+1, threads[i]); caution: threads
-    // }
+    for (int i = 0; i < nthreads; i++) {
+        fprintf(stdout, "\tThread %d\t%d\n", i+1, threads[i].complete);
+    }
+    fprintf(stdout, "Transactions per second: %0.2f\n", transPerSec);
+
 }
