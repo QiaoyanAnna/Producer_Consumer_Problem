@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
     int sleep = 0;
     sizeOfQueue = nthreads * 2 + 1;
     head = 0;
-    tail = -1;
+    tail = 0;
     eof = false;
     clock_t current;
     double timeTaken;
