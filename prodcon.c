@@ -122,9 +122,10 @@ int main(int argc, char** argv) {
             current = clock();
             eof = true;
             // in order to notify customer so that the customer will not stuck in sem_wait(&full)
-            sem_post(&full); 
             timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
             fprintf(stdout, "%0.3f ID= 0      End\n", timeTaken);
+            while (head != tail); // wait until all the tasks are taken by threads
+            sem_post(&full); 
             break;
         }
 
@@ -198,27 +199,28 @@ void *removeWork(void* arg) {
         timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
         fprintf(stdout, "%0.3f ID=%2d      Ask\n", timeTaken, threads->consumerId);
         threads->ask = threads->ask + 1;
-
         sem_wait(&full);
-        if (( head==tail ) && eof) { // complete all the task
+        if ((head == tail) && eof) { // complete all the task
             sem_post(&full);
-            break;
+            return 0;
         } 
         sem_wait(&m);
-        n = queue[head]; // pop out the first item in the queue
-        // task received
-        current = clock();
-        timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
-        head = (head+1)%sizeOfQueue;
-        if (tail>head) {
-            q = tail - head;
-        } else if (head == tail) {
-            q = 0;
-        } else {
-            q = sizeOfQueue - (head - tail);
-        }
-        fprintf(stdout, "%0.3f ID=%2d Q=%2d Receive     %2d\n", timeTaken, threads->consumerId, q, n);
-        threads->receive = threads->receive + 1;
+        if (head != tail) {
+            n = queue[head]; // pop out the first item in the queue
+            // task received
+            current = clock();
+            timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
+            head = (head+1)%sizeOfQueue;
+            if (tail>head) {
+                q = tail - head;
+            } else if (head == tail) {
+                q = 0;
+            } else {
+                q = sizeOfQueue - (head - tail);
+            }
+            fprintf(stdout, "%0.3f ID=%2d Q=%2d Receive     %2d\n", timeTaken, threads->consumerId, q, n);
+            threads->receive = threads->receive + 1;
+        } 
         sem_post(&m);
         sem_post(&empty);
         // call Tran(n)
