@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
     // stdout = fopen(outputFileName, "w");
 
     char request;
-    int n;
+    int n = 0;
     int work = 0;
     int sleep = 0;
     int sizeOfQueue = nthreads * 2;
@@ -111,8 +111,6 @@ int main(int argc, char** argv) {
     }
 
     queue = (int *)malloc(sizeof(int) * sizeOfQueue);
-    printf("addr = %p %d %d\n", queue,(int)sizeof(int), (int)sizeof(int*));
-
     while (1){
         if (scanf("%c%d", &request, &n) == EOF){            
             current = clock();
@@ -154,12 +152,11 @@ int main(int argc, char** argv) {
     }
 
     clock_t end = clock();
-    free(queue);
     summary(work, sleep, end, threads, nthreads);
 
     
     free(threads);
-    
+    free(queue);
     
     // pthread_exit(0);
 
