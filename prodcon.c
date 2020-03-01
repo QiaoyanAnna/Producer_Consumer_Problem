@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
     int n = 0;
     int work = 0;
     int sleep = 0;
-    sizeOfQueue = nthreads * 2;
+    sizeOfQueue = nthreads * 2 + 1;
     head = 0;
     tail = -1;
     eof = false;
@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
         exit(-1);
     }
 
-    if (sem_init(&empty, 0, sizeOfQueue)) {
+    if (sem_init(&empty, 0, sizeOfQueue - 1)) {
         perror("Semaphore Error\n");
         exit(-1);
     }
@@ -126,8 +126,8 @@ int main(int argc, char** argv) {
             // put work into queue
             sem_wait(&empty);
             sem_wait(&m);
-            tail = (tail+1)%sizeOfQueue;
             queue[tail] = n;
+            tail = (tail+1)%sizeOfQueue;
             //tail++;
             sem_post(&m);
             sem_post(&full);
@@ -135,9 +135,9 @@ int main(int argc, char** argv) {
             timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
             int q;
             if (tail>head){
-                q = tail - head + 1;
+                q = tail - head;
             }else{
-                q = sizeOfQueue - (head - tail) + 1;
+                q = sizeOfQueue - (head - tail);
             }
             fprintf(stdout, "%0.3f ID= 0 Q= %d Work\t\t%d\n", timeTaken, q, n);
             work++;
@@ -203,9 +203,9 @@ void *removeWork(void* arg) {
             //head++;
             head = (head+1)%sizeOfQueue;
             if (tail>head){
-                q = tail - head + 1;
+                q = tail - head;
             }else{
-                q = sizeOfQueue - (head - tail) + 1;
+                q = sizeOfQueue - (head - tail);
             }
         } else {
             sem_post(&m);
