@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
     int sleep = 0;
     sizeOfQueue = nthreads * 2;
     head = 0;
-    tail = 0;
+    tail = -1;
     eof = false;
     clock_t current;
     double timeTaken;
@@ -126,18 +126,18 @@ int main(int argc, char** argv) {
             // put work into queue
             sem_wait(&empty);
             sem_wait(&m);
+            tail = (tail+1)%sizeOfQueue;
             queue[tail] = n;
             //tail++;
-            tail = (tail+1)%sizeOfQueue;
             sem_post(&m);
             sem_post(&full);
             current = clock();
             timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
             int q;
             if (tail>head){
-                q = tail - head;
+                q = tail - head + 1;
             }else{
-                q = sizeOfQueue - (head - tail);
+                q = sizeOfQueue - (head - tail) + 1;
             }
             fprintf(stdout, "%0.3f ID= 0 Q= %d Work\t\t%d\n", timeTaken, q, n);
             work++;
@@ -203,9 +203,9 @@ void *removeWork(void* arg) {
             //head++;
             head = (head+1)%sizeOfQueue;
             if (tail>head){
-                q = tail - head;
+                q = tail - head + 1;
             }else{
-                q = sizeOfQueue - (head - tail);
+                q = sizeOfQueue - (head - tail) + 1;
             }
         } else {
             sem_post(&m);
