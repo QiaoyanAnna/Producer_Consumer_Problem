@@ -9,5 +9,3 @@ tands.o: tands.c
 
 clean:
 	rm -f prodcon *.o
-
-remake: clean prodcon
