@@ -14,7 +14,7 @@ sem_t m;
 sem_t empty;
 sem_t full;
 clock_t begin;
-int* queue;
+int *queue;
 int head;
 int tail;
 bool eof;
@@ -32,10 +32,10 @@ void *removeWork(void* arg);
 void summary(int work, int sleep, clock_t end, struct Thread *threads, int nthreads);
 
 int main(int argc, char** argv) {
-
+    begin = clock();
     char outputFileName[15];
     int nthreads;
-    char* id = "0";
+    char *id = "0";
 
     if (argc == 2 || argc == 3) {
         if (!isNum(argv[1])) {
@@ -74,17 +74,11 @@ int main(int argc, char** argv) {
     int work = 0;
     int sleep = 0;
     int sizeOfQueue = nthreads * 2;
-    queue = (int*)malloc(sizeOfQueue);
     head = 0;
     tail = 0;
     eof = false;
     clock_t current;
     double timeTaken;
-
-    struct Thread *threads;
-    // threads = (struct Thread *)calloc(nthreads, sizeof(struct Thread));
-    // threads = (struct Thread *)malloc(sizeof(struct Thread *) * nthreads);
-    threads = (struct Thread *)malloc(sizeof(struct Thread) * nthreads);
 
     if (sem_init(&m, 0, 1)) {
         perror("Semaphore Error\n");
@@ -101,6 +95,9 @@ int main(int argc, char** argv) {
         exit(-1);
     }
 
+    struct Thread *threads;
+    threads = (struct Thread *)malloc(sizeof(struct Thread) * nthreads);
+
     for (int i = 0; i < nthreads; i++) {
         threads[i].consumerId = i+1;
         threads[i].ask = 0;
@@ -108,19 +105,24 @@ int main(int argc, char** argv) {
         threads[i].complete = 0;
         if (pthread_create(&threads[i].tid, NULL, removeWork, &threads[i])){
             perror("Error occured during creating a thread\n");
+            free(threads);
             return -1;
         }
     }
+
+    queue = (int *)malloc(sizeof(int) * sizeOfQueue);
+    printf("addr = %p %d %d\n", queue,(int)sizeof(int), (int)sizeof(int*));
 
     while (1){
         if (scanf("%c%d", &request, &n) == EOF){            
             current = clock();
             eof = true;
+            sem_post(&full);
             timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
             fprintf(stdout, "%0.3f ID= 0      End\n", timeTaken);
             break;
         }
-        begin = clock();
+
         if (request == 'T') {
             // put work into queue
             sem_wait(&empty);
@@ -152,11 +154,13 @@ int main(int argc, char** argv) {
     }
 
     clock_t end = clock();
-    
+    free(queue);
     summary(work, sleep, end, threads, nthreads);
 
+    
     free(threads);
-    free(queue);
+    
+    
     // pthread_exit(0);
 
     return 0;
@@ -183,17 +187,20 @@ void *removeWork(void* arg) {
         timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
         fprintf(stdout, "%0.3f ID= %d      Ask\n", timeTaken, threads->consumerId);
         threads->ask = threads->ask + 1;
-        if ((head == tail) && eof) {
-            break;
-        }
         sem_wait(&full);
+        if (( head==tail ) && eof) {
+            sem_post(&full);
+            break;
+        } 
         sem_wait(&m);
         if (head != tail) {
             n = queue[head];
             head++;
             q = tail - head;
-        } else if (eof) {
-            break;
+        } else {
+            sem_post(&m);
+            sem_post(&full);
+            continue;
         }
         sem_post(&m);
         sem_post(&empty);
