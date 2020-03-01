@@ -38,6 +38,7 @@ int main(int argc, char** argv) {
     int nthreads;
     char *id = "0";
 
+    // check the input if valid
     if (argc == 2 || argc == 3) {
         if (!isNum(argv[1])) {
             fprintf(stderr, "Invalid input.\n");
@@ -45,7 +46,7 @@ int main(int argc, char** argv) {
         }
         nthreads = atoi(argv[1]);
         if (nthreads == 0) {
-            fprintf(stderr, "Number of threads need to be greater than 0.\n");
+            fprintf(stderr, "Number of threads must be greater than 0.\n");
             return -1;
         }
         if (argc == 3) {
@@ -59,7 +60,8 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Invalid input.\n");
         return -1;
     }
-            
+
+    // figure out the output file name        
     if (strcmp(id, "0") == 0) {
         strcpy(outputFileName, "prodcon.log");
     } else {
@@ -67,38 +69,40 @@ int main(int argc, char** argv) {
         strcat(outputFileName, argv[2]);
         strcat(outputFileName, ".log");
     }
-
-    // stdout = fopen(outputFileName, "w");
+    stdout = fopen(outputFileName, "w");
 
     char request;
-    int n = 0;
+    int n, q;
     int work = 0;
     int sleep = 0;
-    sizeOfQueue = nthreads * 2 + 1;
+    clock_t current;
+    double timeTaken;
     head = 0;
     tail = 0;
     eof = false;
-    clock_t current;
-    double timeTaken;
+    sizeOfQueue = nthreads * 2 + 1; // extra space for tail to move
 
+    // semaphore m=1
     if (sem_init(&m, 0, 1)) {
         perror("Semaphore Error\n");
         exit(-1);
     }
 
+    // semaphore empty = sizeOfQueue - 1 = 2 * #consumers
     if (sem_init(&empty, 0, sizeOfQueue - 1)) {
         perror("Semaphore Error\n");
         exit(-1);
     }
 
+    // semaphore full = 0
     if (sem_init(&full, 0, 0)) {
         perror("Semaphore Error\n");
         exit(-1);
     }
 
+    // create threads and initialize ask, receive, complete to zero
     struct Thread *threads;
     threads = (struct Thread *)malloc(sizeof(struct Thread) * nthreads);
-
     for (int i = 0; i < nthreads; i++) {
         threads[i].consumerId = i+1;
         threads[i].ask = 0;
@@ -111,12 +115,14 @@ int main(int argc, char** argv) {
         }
     }
 
+    // allocate space for queue to store tasks
     queue = (int *)malloc(sizeof(int) * sizeOfQueue);
     while (1){
         if (scanf("%c%d", &request, &n) == EOF){            
             current = clock();
             eof = true;
-            sem_post(&full);
+            // in order to notify customer so that the customer will not stuck in sem_wait(&full)
+            sem_post(&full); 
             timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
             fprintf(stdout, "%0.3f ID= 0      End\n", timeTaken);
             break;
@@ -127,24 +133,27 @@ int main(int argc, char** argv) {
             sem_wait(&empty);
             sem_wait(&m);
             queue[tail] = n;
-            tail = (tail+1)%sizeOfQueue;
-            //tail++;
-            sem_post(&m);
-            sem_post(&full);
+            // caluclate time
             current = clock();
             timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
-            int q;
-            if (tail>head){
+            // if the tail reaches the end of the queue, move the tail to the beginning of the queue
+            tail = (tail+1)%sizeOfQueue;
+            // caluclate q
+            if (tail > head){
                 q = tail - head;
-            }else{
+            } else if (head == tail) {
+                q = 0; // it is not possible
+            } else {
                 q = sizeOfQueue - (head - tail);
-            }
-            fprintf(stdout, "%0.3f ID= 0 Q= %d Work\t\t%d\n", timeTaken, q, n);
+            } 
+            fprintf(stdout, "%0.3f ID= 0 Q=%2d Work        %2d\n", timeTaken, q, n);
+            sem_post(&m);
+            sem_post(&full);
             work++;
         } else if (request == 'S') {
             current = clock();
             timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
-            fprintf(stdout, "%0.3f ID= 0      Sleep\t\t%d\n", timeTaken, n);
+            fprintf(stdout, "%0.3f ID= 0      Sleep       %2d\n", timeTaken, n);
             Sleep(n);
             sleep++;
         } 
@@ -153,20 +162,16 @@ int main(int argc, char** argv) {
 
     }
 
+    // wait for all the threads to finish
     for (int j = 0; j < nthreads; j++) {
-        if (pthread_join(threads[j].tid, NULL)==0){
-            printf("thread %d joined.\n", threads[j].consumerId);
-        }
+        pthread_join(threads[j].tid, NULL);
     }
 
     clock_t end = clock();
     summary(work, sleep, end, threads, nthreads);
 
-    
     free(threads);
     free(queue);
-    
-    // pthread_exit(0);
 
     return 0;
 }
@@ -180,6 +185,7 @@ bool isNum(char* num) {
     return true; 
 } 
 
+// consumer threads
 void *removeWork(void* arg) {
     
     struct Thread *threads = arg;
@@ -190,44 +196,38 @@ void *removeWork(void* arg) {
     while(1) {
         current = clock();
         timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
-        fprintf(stdout, "%0.3f ID= %d      Ask\n", timeTaken, threads->consumerId);
+        fprintf(stdout, "%0.3f ID=%2d      Ask\n", timeTaken, threads->consumerId);
         threads->ask = threads->ask + 1;
-        bool isTaskExist = false;
+
         sem_wait(&full);
-        if (( head==tail ) && eof) {
+        if (( head==tail ) && eof) { // complete all the task
             sem_post(&full);
             break;
         } 
         sem_wait(&m);
-        if (head != tail) {
-            n = queue[head];
-            isTaskExist = true;
-            //head++;
-            head = (head+1)%sizeOfQueue;
-            if (tail>head) {
-                q = tail - head;
-            }else{
-                q = sizeOfQueue - (head - tail);
-            }
-        } else if (eof) {
-            sem_post(&m);
-            sem_post(&full);
-            break;
+        n = queue[head]; // pop out the first item in the queue
+        // task received
+        current = clock();
+        timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
+        head = (head+1)%sizeOfQueue;
+        if (tail>head) {
+            q = tail - head;
+        } else if (head == tail) {
+            q = 0;
+        } else {
+            q = sizeOfQueue - (head - tail);
         }
+        fprintf(stdout, "%0.3f ID=%2d Q=%2d Receive     %2d\n", timeTaken, threads->consumerId, q, n);
+        threads->receive = threads->receive + 1;
         sem_post(&m);
         sem_post(&empty);
-        if (isTaskExist) {
-            current = clock();
-            timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
-            fprintf(stdout, "%0.3f ID= %d Q= %d Receive\t%d\n", timeTaken, threads->consumerId, q, n);
-            threads->receive = threads->receive + 1;
-            Trans(n);
-            current = clock();
-            timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
-            fprintf(stdout, "%0.3f ID= %d      Complete\t%d\n", timeTaken, threads->consumerId, n);
-            threads->complete = threads->complete + 1;
-        }
-
+        // call Tran(n)
+        Trans(n);
+        // task complete
+        current = clock();
+        timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
+        fprintf(stdout, "%0.3f ID=%2d      Complete    %2d\n", timeTaken, threads->consumerId, n);
+        threads->complete = threads->complete + 1;
     }
 
     return 0;
@@ -239,23 +239,24 @@ void summary(int work, int sleep, clock_t end, struct Thread *threads, int nthre
     int totalReceive = 0;
     int totalComplete = 0;
     double totalTime = ((double)end-begin) / CLOCKS_PER_SEC;
-    printf("totalTime: %f\n", totalTime);
     double transPerSec = work / totalTime;
 
+    // calculate the total ask, total receive and total complete
     for (int i = 0; i < nthreads; i++) {
         totalAsk = totalAsk + threads[i].ask;
         totalReceive = totalReceive + threads[i].receive;
         totalComplete = totalComplete + threads[i].complete;
     }
 
+    // print summary
     fprintf(stdout, "Summary:\n");
-    fprintf(stdout, "\tWork\t\t%d\n", work);
-    fprintf(stdout, "\tAsk\t\t%d\n", totalAsk);
-    fprintf(stdout, "\tReceive\t\t%d\n", totalReceive);
-    fprintf(stdout, "\tComplete\t%d\n", totalComplete);
-    fprintf(stdout, "\tSleep\t\t%d\n", sleep);
+    fprintf(stdout, "    Work        %2d\n", work);
+    fprintf(stdout, "    Ask         %2d\n", totalAsk);
+    fprintf(stdout, "    Receive     %2d\n", totalReceive);
+    fprintf(stdout, "    Complete    %2d\n", totalComplete);
+    fprintf(stdout, "    Sleep       %2d\n", sleep);
     for (int i = 0; i < nthreads; i++) {
-        fprintf(stdout, "\tThread %d\t%d\n", i+1, threads[i].complete);
+        fprintf(stdout, "    Thread %2d   %2d\n", i+1, threads[i].complete);
     }
     fprintf(stdout, "Transactions per second: %0.2f\n", transPerSec);
 
