@@ -192,6 +192,7 @@ void *removeWork(void* arg) {
         timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
         fprintf(stdout, "%0.3f ID= %d      Ask\n", timeTaken, threads->consumerId);
         threads->ask = threads->ask + 1;
+        bool isTaskExist = false;
         sem_wait(&full);
         if (( head==tail ) && eof) {
             sem_post(&full);
@@ -200,29 +201,33 @@ void *removeWork(void* arg) {
         sem_wait(&m);
         if (head != tail) {
             n = queue[head];
+            isTaskExist = true;
             //head++;
             head = (head+1)%sizeOfQueue;
-            if (tail>head){
+            if (tail>head) {
                 q = tail - head;
             }else{
                 q = sizeOfQueue - (head - tail);
             }
-        } else {
+        } else if (eof) {
             sem_post(&m);
             sem_post(&full);
-            continue;
+            break;
         }
         sem_post(&m);
         sem_post(&empty);
-        current = clock();
-        timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
-        fprintf(stdout, "%0.3f ID= %d Q= %d Receive\t%d\n", timeTaken, threads->consumerId, q, n);
-        threads->receive = threads->receive + 1;
-        Trans(n);
-        current = clock();
-        timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
-        fprintf(stdout, "%0.3f ID= %d      Complete\t%d\n", timeTaken, threads->consumerId, n);
-        threads->complete = threads->complete + 1;
+        if (isTaskExist) {
+            current = clock();
+            timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
+            fprintf(stdout, "%0.3f ID= %d Q= %d Receive\t%d\n", timeTaken, threads->consumerId, q, n);
+            threads->receive = threads->receive + 1;
+            Trans(n);
+            current = clock();
+            timeTaken = ((double)current-begin) / CLOCKS_PER_SEC;
+            fprintf(stdout, "%0.3f ID= %d      Complete\t%d\n", timeTaken, threads->consumerId, n);
+            threads->complete = threads->complete + 1;
+        }
+
     }
 
     return 0;
